@@ -129,7 +129,7 @@ st.sidebar.radio("字体大小", ["标准", "大号", "超大号"], key="font_si
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("📍 备用模拟定位")
-area_list = ["北京市·朝阳区", "北京市·海淀区", "上海市·浦东新区", "广州市·天河区", "深圳市·南山区"]
+area_list = ["北京市·朝阳区", "北京市·海淀区", "上海市·浦东新区", "广州市·天河区", "深圳市·南山区","镇江市-京口区"]
 selected_area = st.sidebar.selectbox("选择地区", area_list, index=area_list.index(st.session_state.location) if st.session_state.location in area_list else 0)
 if st.sidebar.button("一键模拟定位", use_container_width=True):
     st.session_state.location = selected_area
