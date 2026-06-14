@@ -6,18 +6,27 @@ import pandas as pd
 # 页面配置
 st.set_page_config(page_title="颐年乐生活·智慧助老", layout="wide")
 
-# 状态初始化
+# ============ 状态初始化 ============
 if "font_size" not in st.session_state:
     st.session_state.font_size = "标准"
 if "dinner_mode" not in st.session_state:
     st.session_state.dinner_mode = "堂食"
 if "delivery_addr" not in st.session_state:
     st.session_state.delivery_addr = ""
-# 定位：优先真实定位，默认模拟地址
 if "location" not in st.session_state:
     st.session_state.location = "北京市·朝阳区"
+# 新增：健康数据状态（用于提醒功能）
+if "health_vals" not in st.session_state:
+    st.session_state.health_vals = {
+        "心率": 72,
+        "收缩压": 135,
+        "舒张压": 88,
+        "血糖": 5.6,
+        "血氧": 97,
+        "睡眠": "7小时20分"
+    }
 
-# 字体配置
+# ============ 字体配置 ============
 font_dict = {
     "标准": "18px",
     "大号": "22px",
@@ -25,7 +34,7 @@ font_dict = {
 }
 current_font = font_dict[st.session_state.font_size]
 
-# 全局样式
+# ============ 全局样式 ============
 st.markdown(f"""
 <style>
 .big-font {{font-size: {current_font} !important;}}
@@ -34,10 +43,27 @@ st.markdown(f"""
 .tip-box {{background: #fef9e3; padding: 15px; border-radius: 15px; border-left: 5px solid #f4a261; font-size: {current_font};}}
 .guide-box {{background: #eef5ff; padding: 15px; border-radius: 15px; margin: 10px 0; border: 1px solid #4080ff;}}
 .loc-box {{background:#e8f4f8; padding:15px; border-radius:15px; margin:10px 0;}}
+/* 新增：健康卡片样式，模仿你给的APP界面 */
+.health-card {{
+    background: #fff;
+    border-radius: 15px;
+    padding: 20px;
+    margin: 8px 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}}
+.health-icon {{
+    width:40px; height:40px;
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    color:white; font-weight:bold;
+}}
+/* 异常提醒样式 */
+.warning {{color: #ff4d4f; font-weight: bold;}}
+.normal {{color: #52c41a;}}
 </style>
 """, unsafe_allow_html=True)
 
-# 问候语
+# ============ 问候语 ============
 def get_greet():
     hour = datetime.datetime.now().hour
     if hour < 12:
@@ -49,7 +75,6 @@ def get_greet():
 
 # ========== 核心：Streamlit 内嵌 JS 真实定位 ==========
 st.subheader("📍 真实位置获取")
-# 嵌入HTML+JS定位组件，获取经纬度并传回Streamlit
 loc_html = """
 <div class="loc-box">
 <button onclick="getRealLocation()" style="font-size:18px;padding:8px 20px;">🔍 获取当前真实位置</button>
@@ -69,7 +94,6 @@ function getRealLocation(){
             let lat = pos.coords.latitude.toFixed(4);
             let lon = pos.coords.longitude.toFixed(4);
             textDom.innerHTML = `✅ 定位成功<br>纬度：${lat} &nbsp; 经度：${lon}<br>已自动更新页面地址`;
-            // 把定位结果传给Streamlit
             window.parent.document.querySelector("input[data-testid='stTextInput']").value = lat+","+lon;
             window.parent.document.querySelector("input[data-testid='stTextInput']").dispatchEvent(new Event('input'));
         },
@@ -85,7 +109,14 @@ st.components.v1.html(loc_html, height=150)
 # 接收JS传来的定位经纬度（隐藏输入框）
 loc_result = st.text_input("", key="real_loc", label_visibility="hidden")
 if loc_result:
-    st.session_state.location = "已获取真实GPS位置"
+    try:
+        lat, lon = map(float, loc_result.split(","))
+        if 32.10 <= lat <= 32.30 and 119.40 <= lon <= 119.60:
+            st.session_state.location = "江苏省镇江市京口区"
+        else:
+            st.session_state.location = "已获取真实GPS位置"
+    except:
+        st.session_state.location = "已获取真实GPS位置"
 
 # ========== 侧边栏：字体 + 备用模拟定位 ==========
 st.sidebar.title("⚙️ 功能设置")
@@ -93,7 +124,7 @@ st.sidebar.radio("字体大小", ["标准", "大号", "超大号"], key="font_si
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("📍 备用模拟定位")
-area_list = ["北京市·朝阳区", "北京市·海淀区", "上海市·浦东新区", "广州市·天河区", "深圳市·南山区"]
+area_list = ["北京市·朝阳区", "北京市·海淀区", "上海市·浦东新区", "广州市·天河区", "深圳市·南山区", "江苏省镇江市京口区"]
 selected_area = st.sidebar.selectbox("选择地区", area_list, index=area_list.index(st.session_state.location) if st.session_state.location in area_list else 0)
 if st.sidebar.button("一键模拟定位", use_container_width=True):
     st.session_state.location = selected_area
@@ -107,39 +138,14 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# 常用服务
+# ========== 常用服务 ==========
 st.subheader("常用服务")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    if st.button("🏥 预约挂号", use_container_width=True):
-        now_loc = st.session_state.location
-        if "朝阳区" in now_loc:
-            hospital = "北京市朝阳区第一医院"
-            app_name = "朝阳医院挂号小程序"
-        elif "海淀区" in now_loc:
-            hospital = "北京市海淀区人民医院"
-            app_name = "海淀健康挂号平台"
-        elif "浦东新区" in now_loc:
-            hospital = "上海市浦东中心医院"
-            app_name = "浦东就医服务"
-        elif "天河区" in now_loc:
-            hospital = "广州市天河区人民医院"
-            app_name = "广州健康通"
-        elif "南山区" in now_loc:
-            hospital = "深圳市南山人民医院"
-            app_name = "深圳健康服务"
-        else:
-            hospital = "就近综合医院"
-            app_name = "全民健康挂号"
-
-        st.markdown(f"""
-        <div class="guide-box big-font">
-        📍 当前位置：{now_loc}<br>
-        🏥 推荐就近医院：{hospital}<br>
-        💡 请打开微信，搜索小程序：<b>{app_name}</b> 完成线上预约
-        </div>
-        """, unsafe_allow_html=True)
+    # 👉 这里是你可以替换的预约挂号链接
+    TARGET_URL = "https://xxx.com"
+    st.markdown(f'<a href="{TARGET_URL}" target="_blank" class="link-btn">🏥 预约挂号</a>', unsafe_allow_html=True)
 
     if st.button("🍚 老年食堂", use_container_width=True):
         st.session_state.dinner_mode = st.radio("选择用餐方式", ["堂食", "外卖"],
@@ -176,21 +182,165 @@ if st.button("🔄 换一条提醒"):
     st.session_state.cur_tip = random.choice(tips)
 st.markdown(f'<div class="tip-box">{st.session_state.cur_tip}</div>', unsafe_allow_html=True)
 
-# 健康监测
+# ========== 重点：按你给的APP界面，改造健康监测模块 ==========
 st.subheader("❤️ 健康监测（手环同步）")
-health_data = {
-    "心率": "72 次/分",
-    "收缩压": "135 mmHg",
-    "舒张压": "88 mmHg",
-    "血糖": "5.6 mmol/L",
-    "血氧": "97%",
-    "压力指数": "正常",
-    "睡眠时长": "7小时20分"
-}
-df_health = pd.DataFrame(list(health_data.items()), columns=["项目", "当前数值"])
-st.dataframe(df_health, use_container_width=True)
 
-# 病史档案
+# 模拟手环数据输入框（可后续对接真实设备）
+st.write("当前手环数据：")
+hr = st.number_input("心率（次/分）", min_value=40, max_value=200, value=st.session_state.health_vals["心率"])
+sbp = st.number_input("收缩压（mmHg）", min_value=70, max_value=220, value=st.session_state.health_vals["收缩压"])
+dbp = st.number_input("舒张压（mmHg）", min_value=40, max_value=120, value=st.session_state.health_vals["舒张压"])
+bg = st.number_input("血糖（mmol/L）", min_value=2.0, max_value=20.0, value=st.session_state.health_vals["血糖"], step=0.1)
+spo2 = st.number_input("血氧饱和度（%）", min_value=70, max_value=100, value=st.session_state.health_vals["血氧"])
+
+# 更新状态
+st.session_state.health_vals["心率"] = hr
+st.session_state.health_vals["收缩压"] = sbp
+st.session_state.health_vals["舒张压"] = dbp
+st.session_state.health_vals["血糖"] = bg
+st.session_state.health_vals["血氧"] = spo2
+
+# 异常判断 + 提醒逻辑
+warnings = []
+call_120 = False
+
+# 心率异常
+if hr < 50 or hr > 100:
+    warnings.append("⚠️ 心率异常（正常范围：60-100次/分）")
+    if hr < 40 or hr > 150:
+        call_120 = True
+
+# 血压异常
+if sbp < 90 or sbp > 140 or dbp < 60 or dbp > 90:
+    warnings.append("⚠️ 血压异常（正常范围：收缩压90-140/舒张压60-90mmHg）")
+    if sbp > 180 or dbp > 120 or sbp < 70:
+        call_120 = True
+
+# 血糖异常
+if bg < 3.9 or bg > 6.1:
+    warnings.append("⚠️ 血糖异常（正常范围：3.9-6.1mmol/L）")
+    if bg > 13.9 or bg < 2.8:
+        call_120 = True
+
+# 血氧异常
+if spo2 < 95:
+    warnings.append("⚠️ 血氧偏低（正常应≥95%）")
+    if spo2 < 90:
+        call_120 = True
+
+# 显示卡片布局（模仿你给的APP界面）
+hc1, hc2 = st.columns(2)
+
+with hc1:
+    # 睡眠卡片
+    st.markdown("""
+    <div class="health-card">
+        <div style="display:flex; align-items:center;">
+            <div class="health-icon" style="background:#722ed1;">🛏️</div>
+            <div style="margin-left:15px;">
+                <div style="font-weight:bold; font-size:20px;">睡眠</div>
+                <div style="color:#666;">探索您的睡眠动物</div>
+            </div>
+        </div>
+        <div style="margin-top:15px; display:flex; justify-content:space-between; color:#999;">
+            <span>有待提高</span>
+            <span>优</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 血压卡片
+    st.markdown(f"""
+    <div class="health-card">
+        <div style="display:flex; align-items:center;">
+            <div class="health-icon" style="background:#ff4d4f;">💧</div>
+            <div style="margin-left:15px;">
+                <div style="font-weight:bold; font-size:20px;">血压</div>
+                <div style="color:#666;">佩戴设备后测量</div>
+            </div>
+        </div>
+        <div style="margin-top:15px; display:flex; justify-content:space-between; color:#999;">
+            <span>偏低</span>
+            <span>偏高</span>
+        </div>
+        <div style="margin-top:10px; font-size:18px;">
+            <span class="{'warning' if sbp>140 or sbp<90 or dbp>90 or dbp<60 else 'normal'}">{sbp}/{dbp} mmHg</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 血氧卡片
+    st.markdown(f"""
+    <div class="health-card">
+        <div style="display:flex; align-items:center;">
+            <div class="health-icon" style="background:#ff4d4f;">O₂</div>
+            <div style="margin-left:15px;">
+                <div style="font-weight:bold; font-size:20px;">血氧饱和度</div>
+                <div style="color:#666;">佩戴设备后测量</div>
+            </div>
+        </div>
+        <div style="margin-top:10px; font-size:18px;">
+            <span class="{'warning' if spo2<95 else 'normal'}">{spo2}%</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with hc2:
+    # 心率卡片
+    st.markdown(f"""
+    <div class="health-card">
+        <div style="display:flex; align-items:center;">
+            <div class="health-icon" style="background:#ff4d4f;">❤️</div>
+            <div style="margin-left:15px;">
+                <div style="font-weight:bold; font-size:20px;">心率</div>
+                <div style="color:#666;">佩戴设备后测量</div>
+            </div>
+        </div>
+        <div style="margin-top:15px; display:flex; justify-content:space-between; color:#999;">
+            <span>00:00</span>
+            <span>24:00</span>
+        </div>
+        <div style="margin-top:10px; font-size:18px;">
+            <span class="{'warning' if hr>100 or hr<60 else 'normal'}">{hr} 次/分</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 血糖卡片
+    st.markdown(f"""
+    <div class="health-card">
+        <div style="display:flex; align-items:center;">
+            <div class="health-icon" style="background:#ff4d4f;">🩸</div>
+            <div style="margin-left:15px;">
+                <div style="font-weight:bold; font-size:20px;">血糖</div>
+                <div style="color:#666;">记录您的血糖数据</div>
+            </div>
+        </div>
+        <div style="margin-top:15px; display:flex; justify-content:space-between; color:#999;">
+            <span>00:00</span>
+            <span>24:00</span>
+        </div>
+        <div style="margin-top:10px; font-size:18px;">
+            <span class="{'warning' if bg>6.1 or bg<3.9 else 'normal'}">{bg} mmol/L</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# 显示所有异常提醒
+if warnings:
+    st.error("⚠️ 健康数据异常提醒：")
+    for msg in warnings:
+        st.warning(msg)
+
+# 严重异常时自动拨打120（课堂演示版，显示弹窗提示）
+if call_120:
+    st.markdown("""
+    <div style="background:#ff4d4f; color:white; padding:20px; border-radius:10px; text-align:center; font-size:22px; font-weight:bold;">
+        🚨 严重异常！已自动拨打 120 急救电话，请保持电话畅通！
+    </div>
+    """, unsafe_allow_html=True)
+
+# ========== 个人病史档案 ==========
 st.subheader("📋 个人病史档案")
 medical_history = [
     {"疾病名称": "高血压", "确诊年份": "2020", "现状": "规律服药，控制良好"},
