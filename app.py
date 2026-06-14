@@ -43,7 +43,7 @@ st.markdown(f"""
 .tip-box {{background: #fef9e3; padding: 15px; border-radius: 15px; border-left: 5px solid #f4a261; font-size: {current_font};}}
 .guide-box {{background: #eef5ff; padding: 15px; border-radius: 15px; margin: 10px 0; border: 1px solid #4080ff;}}
 .loc-box {{background:#e8f4f8; padding:15px; border-radius:15px; margin:10px 0;}}
-/* 新增：健康卡片样式，模仿你给的APP界面 */
+/* 健康卡片样式 */
 .health-card {{
     background: #fff;
     border-radius: 15px;
@@ -57,9 +57,21 @@ st.markdown(f"""
     display:flex; align-items:center; justify-content:center;
     color:white; font-weight:bold;
 }}
-/* 异常提醒样式 */
 .warning {{color: #ff4d4f; font-weight: bold;}}
 .normal {{color: #52c41a;}}
+/* 跳转按钮样式 */
+.link-btn {{
+    display: block;
+    text-align: center;
+    background: #2E86AB;
+    color: white !important;
+    padding: 10px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: {current_font};
+    font-weight: bold;
+}}
+.link-btn:hover {{background: #236b8a;}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -109,14 +121,7 @@ st.components.v1.html(loc_html, height=150)
 # 接收JS传来的定位经纬度（隐藏输入框）
 loc_result = st.text_input("", key="real_loc", label_visibility="hidden")
 if loc_result:
-    try:
-        lat, lon = map(float, loc_result.split(","))
-        if 32.10 <= lat <= 32.30 and 119.40 <= lon <= 119.60:
-            st.session_state.location = "江苏省镇江市京口区"
-        else:
-            st.session_state.location = "已获取真实GPS位置"
-    except:
-        st.session_state.location = "已获取真实GPS位置"
+    st.session_state.location = "已获取真实GPS位置"
 
 # ========== 侧边栏：字体 + 备用模拟定位 ==========
 st.sidebar.title("⚙️ 功能设置")
@@ -124,7 +129,7 @@ st.sidebar.radio("字体大小", ["标准", "大号", "超大号"], key="font_si
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("📍 备用模拟定位")
-area_list = ["北京市·朝阳区", "北京市·海淀区", "上海市·浦东新区", "广州市·天河区", "深圳市·南山区", "江苏省镇江市京口区"]
+area_list = ["北京市·朝阳区", "北京市·海淀区", "上海市·浦东新区", "广州市·天河区", "深圳市·南山区"]
 selected_area = st.sidebar.selectbox("选择地区", area_list, index=area_list.index(st.session_state.location) if st.session_state.location in area_list else 0)
 if st.sidebar.button("一键模拟定位", use_container_width=True):
     st.session_state.location = selected_area
@@ -143,9 +148,8 @@ st.subheader("常用服务")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    # 👉 这里是你可以替换的预约挂号链接
-    TARGET_URL = "https://xxx.com"
-    st.markdown(f'<a href="{TARGET_URL}" target="_blank" class="link-btn">🏥 预约挂号</a>', unsafe_allow_html=True)
+    # 👉 预约挂号按钮，直接跳转到你指定的网页
+    st.markdown(f'<a href="http://www.jdfy.cn" target="_blank" class="link-btn">🏥 预约挂号</a>', unsafe_allow_html=True)
 
     if st.button("🍚 老年食堂", use_container_width=True):
         st.session_state.dinner_mode = st.radio("选择用餐方式", ["堂食", "外卖"],
@@ -185,7 +189,7 @@ st.markdown(f'<div class="tip-box">{st.session_state.cur_tip}</div>', unsafe_all
 # ========== 重点：按你给的APP界面，改造健康监测模块 ==========
 st.subheader("❤️ 健康监测（手环同步）")
 
-# 模拟手环数据输入框（可后续对接真实设备）
+# 模拟手环数据输入框
 st.write("当前手环数据：")
 hr = st.number_input("心率（次/分）", min_value=40, max_value=200, value=st.session_state.health_vals["心率"])
 sbp = st.number_input("收缩压（mmHg）", min_value=70, max_value=220, value=st.session_state.health_vals["收缩压"])
@@ -205,7 +209,7 @@ warnings = []
 call_120 = False
 
 # 心率异常
-if hr < 50 or hr > 100:
+if hr < 60 or hr > 100:
     warnings.append("⚠️ 心率异常（正常范围：60-100次/分）")
     if hr < 40 or hr > 150:
         call_120 = True
