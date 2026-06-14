@@ -13,6 +13,9 @@ if "dinner_mode" not in st.session_state:
     st.session_state.dinner_mode = "堂食"
 if "delivery_addr" not in st.session_state:
     st.session_state.delivery_addr = ""
+# 定位相关状态
+if "location" not in st.session_state:
+    st.session_state.location = "北京市·朝阳区"
 
 # ============ 字体大小控制 ============
 font_dict = {
@@ -29,6 +32,7 @@ st.markdown(f"""
 .card {{background: #fff; border-radius: 20px; padding: 20px; margin: 10px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.08);}}
 .emergency {{background: #e63946; color: #fff; font-size: {current_font}; font-weight: bold; padding: 15px; border-radius: 10px; text-align: center;}}
 .tip-box {{background: #fef9e3; padding: 15px; border-radius: 15px; border-left: 5px solid #f4a261; font-size: {current_font};}}
+.location-box {{background: #e8f4f8; padding: 12px; border-radius: 15px; margin: 10px 0;}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -42,15 +46,29 @@ def get_greet():
     else:
         return "晚上好 🌙"
 
-# ============ 1. 字体切换按钮 ============
-st.sidebar.title("⚙️ 显示设置")
+# ============ 1. 侧边栏：设置 + 定位功能 ============
+st.sidebar.title("⚙️ 功能设置")
+# 字体切换
 st.sidebar.radio("字体大小", ["标准", "大号", "超大号"], key="font_size")
 
-# ============ 头部卡片 ============
+# 定位区域（侧边栏放置，整洁美观）
+st.sidebar.markdown("---")
+st.sidebar.subheader("📍 位置定位")
+# 可选地址列表，可自行增删地区
+addr_list = ["北京市·朝阳区", "北京市·海淀区", "上海市·浦东新区", "广州市·天河区", "深圳市·南山区"]
+# 手动选择位置
+select_loc = st.sidebar.selectbox("选择居住地址", addr_list, index=addr_list.index(st.session_state.location))
+
+# 一键定位按钮（模拟GPS定位）
+if st.sidebar.button("🔍 一键获取当前位置", use_container_width=True):
+    st.session_state.location = select_loc
+    st.sidebar.success(f"定位成功：{st.session_state.location}")
+
+# ============ 头部卡片（地址自动同步定位结果） ============
 st.markdown(f"""
 <div class="card big-font">
 👴 王爷爷，{get_greet()}<br>
-📍 北京市·朝阳区 &nbsp; 🌡️ 24°C 晴
+📍 {st.session_state.location} &nbsp; 🌡️ 24°C 晴
 </div>
 """, unsafe_allow_html=True)
 
