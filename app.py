@@ -6,26 +6,24 @@ import pandas as pd
 # 页面配置
 st.set_page_config(page_title="颐年乐生活·智慧助老", layout="wide")
 
-# ============ 状态初始化 ============
+# ============ 全局状态初始化 ============
 if "font_size" not in st.session_state:
     st.session_state.font_size = "标准"
-# 用餐模式
+# 老年食堂状态
 if "dinner_mode" not in st.session_state:
     st.session_state.dinner_mode = ""
-# 外卖点餐弹窗开关
 if "show_food_panel" not in st.session_state:
     st.session_state.show_food_panel = False
-# 下单成功弹窗
 if "show_delivery_tip" not in st.session_state:
     st.session_state.show_delivery_tip = False
 if "delivery_addr" not in st.session_state:
     st.session_state.delivery_addr = ""
 if "select_foods" not in st.session_state:
     st.session_state.select_foods = []
-
+# 定位位置
 if "location" not in st.session_state:
     st.session_state.location = "北京市·朝阳区"
-# 健康数据状态
+# 健康监测数据
 if "health_vals" not in st.session_state:
     st.session_state.health_vals = {
         "心率": 72,
@@ -35,6 +33,11 @@ if "health_vals" not in st.session_state:
         "血氧": 97,
         "睡眠": "7小时20分"
     }
+# 漂浮指引助手状态
+if "guide_step" not in st.session_state:
+    st.session_state.guide_step = 0  # 引导步骤0=未开始
+if "guide_open" not in st.session_state:
+    st.session_state.guide_open = True  # 默认打开指引助手
 
 # ============ 字体配置 ============
 font_dict = {
@@ -110,6 +113,50 @@ st.markdown(f"""
     font-weight:bold;
     font-size: calc({current_font}+4px);
 }}
+/* ========== 漂浮豆包指引助手核心样式 ========== */
+.float-guide {{
+    position: fixed;
+    right: 20px;
+    bottom: 30px;
+    width: 320px;
+    background: #e1f5fe;
+    border: 2px solid #0288d1;
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    z-index: 9999;
+}}
+.guide-title {{
+    font-weight: bold;
+    font-size: calc({current_font}+2px);
+    color: #01579b;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}}
+.guide-text {{
+    margin:12px 0;
+    font-size: {current_font};
+    line-height: 1.6;
+}}
+.guide-btn-group {{
+    display: flex;
+    gap:8px;
+    flex-wrap: wrap;
+    margin-top:10px;
+}}
+.guide-btn {{
+    padding:6px 12px;
+    border-radius:8px;
+    border:none;
+    font-size:16px;
+    cursor:pointer;
+}}
+.next-btn {{background:#0288d1; color:white;}}
+.reset-btn {{background:#ffb74d; color:#222;}}
+.close-btn {{background:#bdbdbd; color:white;}}
+/* 隐藏原生streamlit多余滚动条 */
+[data-testid="stVerticalBlock"] {{gap: 0.5rem;}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -122,6 +169,54 @@ def get_greet():
         return "下午好 ☀️"
     else:
         return "晚上好 🌙"
+
+# ========== 漂浮豆包指引助手 分步引导文案 ==========
+guide_content = [
+    # 步骤0 欢迎页
+    "大家好！我是本页面专属指引助手豆包😊，我会一步一步带领您学会这个老年智慧平台全部功能，点击【下一步】开始教学！",
+    # 步骤1 字体与定位介绍
+    "第一步：页面左上角侧边栏设置。您可以切换标准/大号/超大字体方便阅读；还能手动选择您的居住地区，或者点击上方【获取当前真实位置】自动定位您的家！",
+    # 步骤2 头部首页信息
+    "第二步：页面顶部卡片会显示您的姓名、当前定位地址和今日气温，定位成功后会自动更新为您的真实住址，方便匹配附近社区医院与食堂。",
+    # 步骤3 常用服务-预约挂号
+    "第三步：常用服务第一个蓝色按钮【预约挂号】，点击会自动新开页面跳转医院官网，可在线看病挂号；系统会根据您的地址推荐就近医院。",
+    # 步骤4 常用服务-老年食堂
+    "第四步：点击【老年食堂】按钮，可选择堂食到店吃饭，或外卖配送到家；选外卖可以勾选多款适合老人的清淡菜品，填写家庭地址下单，下单后提示正在配送。",
+    # 步骤5 健康监测模块
+    "第五步：健康监测区域，模拟智能手环实时同步心率、血压、血糖、血氧、睡眠数据；数值异常会弹出黄色提醒，严重超标系统自动模拟拨打120急救。",
+    # 步骤6 紧急求助与联系人
+    "第六步：页面下方有一键紧急求助，触发后同时拨打120和家人；下方快速联系可直接呼叫儿子、女儿、社区工作人员，点击即弹出通话提示窗口。",
+    # 步骤7 全部功能讲解完毕
+    "全部功能教学完成！您可以自由使用页面所有功能，忘记操作随时点【重置引导】重新看教程，有不懂的随时查看我的指引~"
+]
+
+# ========== 渲染右下角永久漂浮指引助手 ==========
+if st.session_state.guide_open:
+    step = st.session_state.guide_step
+    current_text = guide_content[step]
+    st.markdown(f"""
+    <div class="float-guide">
+        <div class="guide-title">🤖 豆包智能指引人</div>
+        <div class="guide-text">{current_text}</div>
+        <div class="guide-btn-group">
+            <button class="guide-btn next-btn" onclick="window.streamlitSetState('guide_step', {step+1})">下一步</button>
+            <button class="guide-btn reset-btn" onclick="window.streamlitSetState('guide_step', 0)">重置引导</button>
+            <button class="guide-btn close-btn" onclick="window.streamlitSetState('guide_open', false)">关闭助手</button>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    # JS绑定状态更新（适配streamlit状态切换）
+    st.components.v1.html("""
+    <script>
+    window.streamlitSetState = function(key, val) {
+        const input = window.parent.document.querySelector(`input[data-testid="stHiddenInput-${key}"]`);
+        if(input) {
+            input.value = val;
+            input.dispatchEvent(new Event('input'));
+        }
+    }
+    </script>
+    """, height=0)
 
 # ========== 核心：Streamlit 内嵌 JS 真实定位 ==========
 st.subheader("📍 真实位置获取")
@@ -196,25 +291,23 @@ with col1:
     # 👉 预约挂号按钮，直接跳转到你指定的网页
     st.markdown(f'<a href="http://www.jdfy.cn" target="_blank" class="link-btn">🏥 预约挂号</a>', unsafe_allow_html=True)
 
-    # 1. 老年食堂按钮：仅切换开关状态，不嵌套单选框
+    # 1. 老年食堂按钮：仅切换开关状态
     if st.button("🍚 老年食堂", use_container_width=True):
         st.session_state.show_food_panel = True
 
-    # 2. 弹窗开启后，常驻显示用餐选择（修复核心：移出按钮内部）
+    # 2. 弹窗开启后，常驻显示用餐选择
     if st.session_state.show_food_panel:
         st.session_state.dinner_mode = st.radio("选择用餐方式", ["堂食", "外卖"])
 
         # 堂食逻辑
         if st.session_state.dinner_mode == "堂食":
             st.success("🥢 明日菜单：西红柿炒蛋、清蒸鲈鱼、杂粮饭，可直接到店用餐。")
-            # 切换堂食清空配送弹窗
             st.session_state.show_delivery_tip = False
 
         # 外卖点餐完整窗口
         if st.session_state.dinner_mode == "外卖":
             st.markdown('<div class="order-box big-font">', unsafe_allow_html=True)
             st.subheader("🍱 社区老年食堂外卖点餐")
-            # 食堂菜式多选
             food_list = [
                 "清蒸鲈鱼",
                 "西红柿炒鸡蛋",
@@ -226,11 +319,8 @@ with col1:
                 "豆腐炖白菜"
             ]
             st.session_state.select_foods = st.multiselect("请勾选需要配送的菜式", food_list, default=st.session_state.select_foods)
-            # 家庭地址输入
             st.session_state.delivery_addr = st.text_input("填写您的家庭配送地址", value=st.session_state.delivery_addr)
-            # 确认下单按钮
             if st.button("✅ 确认下单配送"):
-                # 校验输入
                 if len(st.session_state.select_foods) == 0:
                     st.warning("请至少选择一道菜品！")
                 elif len(st.session_state.delivery_addr.strip()) < 3:
@@ -239,7 +329,7 @@ with col1:
                     st.session_state.show_delivery_tip = True
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # 下单成功 配送提示弹窗（常驻渲染）
+    # 下单成功 配送提示弹窗
     if st.session_state.show_delivery_tip:
         st.markdown("""
         <div class="delivery-success">
@@ -257,21 +347,21 @@ with col2:
     if st.button("💊 用药提醒", use_container_width=True):
         st.info("用药提醒：每日早7:30、晚19:00，药师专线：400-882-1234。")
     if st.button("👨‍⚕️ 上门护理", use_container_width=True):
-        st.info("已预约下周一体温测量/康复按摩，工作人员将提前联系。")
+        st.info("已预约下周一体温测量/康复护理，工作人员将提前致电联系。")
 
 with col3:
     if st.button("🎭 社区活动", use_container_width=True):
-        st.info("下周活动：书法班、八段锦、手机课堂，报名：010-87654321。")
+        st.info("下周活动：书法班、八段锦、手机课堂，报名热线：010-87654321。")
     if st.button("💳 生活缴费", use_container_width=True):
-        st.info("水电燃气线上缴费即将开放，可前往社区服务点代办。")
+        st.info("水电燃气线上缴费即将上线，可前往社区服务点线下办理。")
 
 # 健康小贴士
 tips = [
-    "🌿 夏季宜午休30分钟，多喝水，高血压长辈按时服药。",
-    "🍎 每日吃苹果补充维生素，少吃高盐腌制品。",
-    "🚶 饭后散步15分钟，帮助消化、稳定血糖。",
-    "😴 23点前入睡，保证7小时睡眠，呵护心脑血管。",
-    "👂 定期检查视听能力，雨天出行注意防滑。"
+    "🌿 夏季午休30分钟，多喝温水，高血压人群按时服药。",
+    "🍎 每日适量吃果蔬，减少高油高盐腌制食品。",
+    "🚶 饭后散步15分钟，促进消化，平稳血压。",
+    "😴 23点前入睡，保证7-8小时睡眠，保护心脑血管。",
+    "👂 定期检查听力视力，雨天外出注意防滑跌倒。"
 ]
 if "cur_tip" not in st.session_state:
     st.session_state.cur_tip = random.choice(tips)
@@ -279,57 +369,41 @@ if st.button("🔄 换一条提醒"):
     st.session_state.cur_tip = random.choice(tips)
 st.markdown(f'<div class="tip-box">{st.session_state.cur_tip}</div>', unsafe_allow_html=True)
 
-# ========== 重点：按你给的APP界面，改造健康监测模块 ==========
+# ========== 健康监测模块（仿手机APP卡片） ==========
 st.subheader("❤️ 健康监测（手环同步）")
-
-# 模拟手环数据输入框
-st.write("当前手环数据：")
+st.write("当前手环实时数据：")
 hr = st.number_input("心率（次/分）", min_value=40, max_value=200, value=st.session_state.health_vals["心率"])
 sbp = st.number_input("收缩压（mmHg）", min_value=70, max_value=220, value=st.session_state.health_vals["收缩压"])
 dbp = st.number_input("舒张压（mmHg）", min_value=40, max_value=120, value=st.session_state.health_vals["舒张压"])
 bg = st.number_input("血糖（mmol/L）", min_value=2.0, max_value=20.0, value=st.session_state.health_vals["血糖"], step=0.1)
 spo2 = st.number_input("血氧饱和度（%）", min_value=70, max_value=100, value=st.session_state.health_vals["血氧"])
 
-# 更新状态
+# 更新健康数据缓存
 st.session_state.health_vals["心率"] = hr
 st.session_state.health_vals["收缩压"] = sbp
 st.session_state.health_vals["舒张压"] = dbp
 st.session_state.health_vals["血糖"] = bg
 st.session_state.health_vals["血氧"] = spo2
 
-# 异常判断 + 提醒逻辑
+# 健康异常判定逻辑
 warnings = []
 call_120 = False
-
-# 心率异常
 if hr < 60 or hr > 100:
-    warnings.append("⚠️ 心率异常（正常范围：60-100次/分）")
-    if hr < 40 or hr > 150:
-        call_120 = True
-
-# 血压异常
+    warnings.append("⚠️ 心率异常（标准60-100次/分）")
+    if hr < 40 or hr > 150: call_120 = True
 if sbp < 90 or sbp > 140 or dbp < 60 or dbp > 90:
-    warnings.append("⚠️ 血压异常（正常范围：收缩压90-140/舒张压60-90mmHg）")
-    if sbp > 180 or dbp > 120 or sbp < 70:
-        call_120 = True
-
-# 血糖异常
+    warnings.append("⚠️ 血压异常（标准90-140/60-90mmHg）")
+    if sbp > 180 or dbp > 120 or sbp < 70: call_120 = True
 if bg < 3.9 or bg > 6.1:
-    warnings.append("⚠️ 血糖异常（正常范围：3.9-6.1mmol/L）")
-    if bg > 13.9 or bg < 2.8:
-        call_120 = True
-
-# 血氧异常
+    warnings.append("⚠️ 血糖异常（标准3.9-6.1mmol/L）")
+    if bg > 13.9 or bg < 2.8: call_120 = True
 if spo2 < 95:
-    warnings.append("⚠️ 血氧偏低（正常应≥95%）")
-    if spo2 < 90:
-        call_120 = True
+    warnings.append("⚠️ 血氧偏低（正常≥95%）")
+    if spo2 < 90: call_120 = True
 
-# 显示卡片布局（模仿你给的APP界面）
+# 两行三列健康卡片布局
 hc1, hc2 = st.columns(2)
-
 with hc1:
-    # 睡眠卡片
     st.markdown("""
     <div class="health-card">
         <div style="display:flex; align-items:center;">
@@ -345,8 +419,6 @@ with hc1:
         </div>
     </div>
     """, unsafe_allow_html=True)
-
-    # 血压卡片
     st.markdown(f"""
     <div class="health-card">
         <div style="display:flex; align-items:center;">
@@ -365,8 +437,6 @@ with hc1:
         </div>
     </div>
     """, unsafe_allow_html=True)
-
-    # 血氧卡片
     st.markdown(f"""
     <div class="health-card">
         <div style="display:flex; align-items:center;">
@@ -381,9 +451,7 @@ with hc1:
         </div>
     </div>
     """, unsafe_allow_html=True)
-
 with hc2:
-    # 心率卡片
     st.markdown(f"""
     <div class="health-card">
         <div style="display:flex; align-items:center;">
@@ -402,8 +470,6 @@ with hc2:
         </div>
     </div>
     """, unsafe_allow_html=True)
-
-    # 血糖卡片
     st.markdown(f"""
     <div class="health-card">
         <div style="display:flex; align-items:center;">
@@ -423,13 +489,12 @@ with hc2:
     </div>
     """, unsafe_allow_html=True)
 
-# 显示所有异常提醒
+# 健康异常警告
 if warnings:
     st.error("⚠️ 健康数据异常提醒：")
     for msg in warnings:
         st.warning(msg)
-
-# 严重异常时弹出通话弹窗：正在拨打120急救中心
+# 严重健康异常自动拨打120弹窗
 if call_120:
     st.markdown("""
     <div class="call-alert">
@@ -448,9 +513,8 @@ medical_history = [
 df_medical = pd.DataFrame(medical_history)
 st.dataframe(df_medical, use_container_width=True)
 
-# 紧急求助
+# 一键紧急求助
 st.markdown('<div class="emergency">🚨 一键紧急求助 🚨</div>', unsafe_allow_html=True)
-# 点击求助按钮，弹出通话弹窗，清晰告知拨打对象
 if st.button("立即求助", type="primary", use_container_width=True):
     st.markdown("""
     <div class="call-alert">
@@ -460,7 +524,7 @@ if st.button("立即求助", type="primary", use_container_width=True):
     </div>
     """, unsafe_allow_html=True)
 
-# 快速联系
+# 快速联系家人社区
 st.subheader("📞 快速联系家人/社区")
 c1, c2, c3 = st.columns(3)
 with c1:
@@ -485,7 +549,7 @@ with c3:
         </div>
         """, unsafe_allow_html=True)
 
-# 底部
+# 页面底部
 st.markdown(f"""
 <div style="text-align:center; background:#f0f4f9; padding:12px; border-radius:40px; font-size: {current_font};">
 📞 社区热线：010-12345678 &nbsp; | &nbsp; 急救：120
