@@ -9,23 +9,23 @@ st.set_page_config(page_title="颐年乐生活·智慧助老", layout="wide")
 # ============ 状态初始化 ============
 if "font_size" not in st.session_state:
     st.session_state.font_size = "标准"
+# 用餐模式
 if "dinner_mode" not in st.session_state:
-    st.session_state.dinner_mode = None
-# 外卖弹窗状态
-if "show_food_order" not in st.session_state:
-    st.session_state.show_food_order = False
-# 下单成功配送弹窗
+    st.session_state.dinner_mode = ""
+# 外卖点餐弹窗开关
+if "show_food_panel" not in st.session_state:
+    st.session_state.show_food_panel = False
+# 下单成功弹窗
 if "show_delivery_tip" not in st.session_state:
     st.session_state.show_delivery_tip = False
 if "delivery_addr" not in st.session_state:
     st.session_state.delivery_addr = ""
-# 选中菜品
 if "select_foods" not in st.session_state:
     st.session_state.select_foods = []
 
 if "location" not in st.session_state:
     st.session_state.location = "北京市·朝阳区"
-# 新增：健康数据状态（用于提醒功能）
+# 健康数据状态
 if "health_vals" not in st.session_state:
     st.session_state.health_vals = {
         "心率": 72,
@@ -159,7 +159,14 @@ st.components.v1.html(loc_html, height=150)
 # 接收JS传来的定位经纬度（隐藏输入框）
 loc_result = st.text_input("", key="real_loc", label_visibility="hidden")
 if loc_result:
-    st.session_state.location = "已获取真实GPS位置"
+    try:
+        lat, lon = map(float, loc_result.split(","))
+        if 32.10 <= lat <= 32.30 and 119.40 <= lon <= 119.60:
+            st.session_state.location = "镇江市-京口区"
+        else:
+            st.session_state.location = "已获取真实GPS位置"
+    except:
+        st.session_state.location = "已获取真实GPS位置"
 
 # ========== 侧边栏：字体 + 备用模拟定位 ==========
 st.sidebar.title("⚙️ 功能设置")
@@ -189,46 +196,50 @@ with col1:
     # 👉 预约挂号按钮，直接跳转到你指定的网页
     st.markdown(f'<a href="http://www.jdfy.cn" target="_blank" class="link-btn">🏥 预约挂号</a>', unsafe_allow_html=True)
 
-    # 老年食堂模块（新增外卖完整弹窗逻辑）
+    # 1. 老年食堂按钮：仅切换开关状态，不嵌套单选框
     if st.button("🍚 老年食堂", use_container_width=True):
+        st.session_state.show_food_panel = True
+
+    # 2. 弹窗开启后，常驻显示用餐选择（修复核心：移出按钮内部）
+    if st.session_state.show_food_panel:
         st.session_state.dinner_mode = st.radio("选择用餐方式", ["堂食", "外卖"])
-        st.session_state.show_food_order = False
-        st.session_state.show_delivery_tip = False
 
-    # 判断用餐模式
-    if st.session_state.dinner_mode == "堂食":
-        st.success("🥢 明日菜单：西红柿炒蛋、清蒸鲈鱼、杂粮饭，可直接到店用餐。")
+        # 堂食逻辑
+        if st.session_state.dinner_mode == "堂食":
+            st.success("🥢 明日菜单：西红柿炒蛋、清蒸鲈鱼、杂粮饭，可直接到店用餐。")
+            # 切换堂食清空配送弹窗
+            st.session_state.show_delivery_tip = False
 
-    if st.session_state.dinner_mode == "外卖":
-        # 外卖点餐弹窗容器
-        st.markdown('<div class="order-box big-font">', unsafe_allow_html=True)
-        st.subheader("🍱 社区老年食堂外卖点餐")
-        # 食堂菜式多选
-        food_list = [
-            "清蒸鲈鱼",
-            "西红柿炒鸡蛋",
-            "清炒西兰花",
-            "冬瓜排骨汤",
-            "杂粮米饭",
-            "小米粥",
-            "蒸南瓜",
-            "豆腐炖白菜"
-        ]
-        st.session_state.select_foods = st.multiselect("请勾选需要配送的菜式", food_list)
-        # 家庭地址输入
-        st.session_state.delivery_addr = st.text_input("填写您的家庭配送地址", value=st.session_state.delivery_addr)
-        # 确认下单按钮
-        if st.button("✅ 确认下单配送"):
-            # 校验输入
-            if len(st.session_state.select_foods) == 0:
-                st.warning("请至少选择一道菜品！")
-            elif len(st.session_state.delivery_addr.strip()) < 3:
-                st.warning("请填写完整家庭地址！")
-            else:
-                st.session_state.show_delivery_tip = True
-        st.markdown('</div>', unsafe_allow_html=True)
+        # 外卖点餐完整窗口
+        if st.session_state.dinner_mode == "外卖":
+            st.markdown('<div class="order-box big-font">', unsafe_allow_html=True)
+            st.subheader("🍱 社区老年食堂外卖点餐")
+            # 食堂菜式多选
+            food_list = [
+                "清蒸鲈鱼",
+                "西红柿炒鸡蛋",
+                "清炒西兰花",
+                "冬瓜排骨汤",
+                "杂粮米饭",
+                "小米粥",
+                "蒸南瓜",
+                "豆腐炖白菜"
+            ]
+            st.session_state.select_foods = st.multiselect("请勾选需要配送的菜式", food_list, default=st.session_state.select_foods)
+            # 家庭地址输入
+            st.session_state.delivery_addr = st.text_input("填写您的家庭配送地址", value=st.session_state.delivery_addr)
+            # 确认下单按钮
+            if st.button("✅ 确认下单配送"):
+                # 校验输入
+                if len(st.session_state.select_foods) == 0:
+                    st.warning("请至少选择一道菜品！")
+                elif len(st.session_state.delivery_addr.strip()) < 3:
+                    st.warning("请填写完整家庭地址！")
+                else:
+                    st.session_state.show_delivery_tip = True
+            st.markdown('</div>', unsafe_allow_html=True)
 
-    # 下单成功 配送提示弹窗
+    # 下单成功 配送提示弹窗（常驻渲染）
     if st.session_state.show_delivery_tip:
         st.markdown("""
         <div class="delivery-success">
