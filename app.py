@@ -10,9 +10,19 @@ st.set_page_config(page_title="颐年乐生活·智慧助老", layout="wide")
 if "font_size" not in st.session_state:
     st.session_state.font_size = "标准"
 if "dinner_mode" not in st.session_state:
-    st.session_state.dinner_mode = "堂食"
+    st.session_state.dinner_mode = None
+# 外卖弹窗状态
+if "show_food_order" not in st.session_state:
+    st.session_state.show_food_order = False
+# 下单成功配送弹窗
+if "show_delivery_tip" not in st.session_state:
+    st.session_state.show_delivery_tip = False
 if "delivery_addr" not in st.session_state:
     st.session_state.delivery_addr = ""
+# 选中菜品
+if "select_foods" not in st.session_state:
+    st.session_state.select_foods = []
+
 if "location" not in st.session_state:
     st.session_state.location = "北京市·朝阳区"
 # 新增：健康数据状态（用于提醒功能）
@@ -72,6 +82,34 @@ st.markdown(f"""
     font-weight: bold;
 }}
 .link-btn:hover {{background: #236b8a;}}
+/* 通话弹窗样式 */
+.call-alert {{
+    background: #ff3b30;
+    color: white;
+    padding: 25px;
+    border-radius: 16px;
+    text-align: center;
+    font-size: calc({current_font} + 4px);
+    font-weight: bold;
+    margin: 15px 0;
+}}
+/* 外卖下单弹窗样式 */
+.order-box {{
+    background: #fff;
+    border:2px solid #ff9800;
+    border-radius:16px;
+    padding:25px;
+    margin:15px 0;
+}}
+.delivery-success {{
+    background:#00c853;
+    color:white;
+    border-radius:16px;
+    padding:20px;
+    text-align:center;
+    font-weight:bold;
+    font-size: calc({current_font}+4px);
+}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -151,14 +189,58 @@ with col1:
     # 👉 预约挂号按钮，直接跳转到你指定的网页
     st.markdown(f'<a href="http://www.jdfy.cn" target="_blank" class="link-btn">🏥 预约挂号</a>', unsafe_allow_html=True)
 
+    # 老年食堂模块（新增外卖完整弹窗逻辑）
     if st.button("🍚 老年食堂", use_container_width=True):
-        st.session_state.dinner_mode = st.radio("选择用餐方式", ["堂食", "外卖"],
-                                               index=["堂食","外卖"].index(st.session_state.dinner_mode))
-        if st.session_state.dinner_mode == "堂食":
-            st.success("🥢 明日菜单：西红柿炒蛋、清蒸鲈鱼、杂粮饭，可直接到店用餐。")
-        else:
-            st.session_state.delivery_addr = st.text_input("请输入送餐地址：", value=st.session_state.delivery_addr)
-            st.success(f"🚚 外卖已登记，明日菜单将送至：{st.session_state.delivery_addr}")
+        st.session_state.dinner_mode = st.radio("选择用餐方式", ["堂食", "外卖"])
+        st.session_state.show_food_order = False
+        st.session_state.show_delivery_tip = False
+
+    # 判断用餐模式
+    if st.session_state.dinner_mode == "堂食":
+        st.success("🥢 明日菜单：西红柿炒蛋、清蒸鲈鱼、杂粮饭，可直接到店用餐。")
+
+    if st.session_state.dinner_mode == "外卖":
+        # 外卖点餐弹窗容器
+        st.markdown('<div class="order-box big-font">', unsafe_allow_html=True)
+        st.subheader("🍱 社区老年食堂外卖点餐")
+        # 食堂菜式多选
+        food_list = [
+            "清蒸鲈鱼",
+            "西红柿炒鸡蛋",
+            "清炒西兰花",
+            "冬瓜排骨汤",
+            "杂粮米饭",
+            "小米粥",
+            "蒸南瓜",
+            "豆腐炖白菜"
+        ]
+        st.session_state.select_foods = st.multiselect("请勾选需要配送的菜式", food_list)
+        # 家庭地址输入
+        st.session_state.delivery_addr = st.text_input("填写您的家庭配送地址", value=st.session_state.delivery_addr)
+        # 确认下单按钮
+        if st.button("✅ 确认下单配送"):
+            # 校验输入
+            if len(st.session_state.select_foods) == 0:
+                st.warning("请至少选择一道菜品！")
+            elif len(st.session_state.delivery_addr.strip()) < 3:
+                st.warning("请填写完整家庭地址！")
+            else:
+                st.session_state.show_delivery_tip = True
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # 下单成功 配送提示弹窗
+    if st.session_state.show_delivery_tip:
+        st.markdown("""
+        <div class="delivery-success">
+        🚚 下单成功！<br>
+        菜品：{select}<br>
+        配送地址：{addr}<br>
+        正在配送中，请留意送餐人员电话！
+        </div>
+        """.format(
+            select="、".join(st.session_state.select_foods),
+            addr=st.session_state.delivery_addr
+        ), unsafe_allow_html=True)
 
 with col2:
     if st.button("💊 用药提醒", use_container_width=True):
@@ -336,11 +418,13 @@ if warnings:
     for msg in warnings:
         st.warning(msg)
 
-# 严重异常时自动拨打120（课堂演示版，显示弹窗提示）
+# 严重异常时弹出通话弹窗：正在拨打120急救中心
 if call_120:
     st.markdown("""
-    <div style="background:#ff4d4f; color:white; padding:20px; border-radius:10px; text-align:center; font-size:22px; font-weight:bold;">
-        🚨 严重异常！已自动拨打 120 急救电话，请保持电话畅通！
+    <div class="call-alert">
+        🚨 身体指标严重异常<br>
+        系统正在自动拨打：120 急救中心<br>
+        请保持手机畅通，等待医护人员来电！
     </div>
     """, unsafe_allow_html=True)
 
@@ -355,18 +439,40 @@ st.dataframe(df_medical, use_container_width=True)
 
 # 紧急求助
 st.markdown('<div class="emergency">🚨 一键紧急求助 🚨</div>', unsafe_allow_html=True)
+# 点击求助按钮，弹出通话弹窗，清晰告知拨打对象
 if st.button("立即求助", type="primary", use_container_width=True):
-    st.error("【紧急求助】正在联系紧急联系人 & 120急救中心，请保持电话畅通！")
+    st.markdown("""
+    <div class="call-alert">
+        🚨 紧急求助已触发<br>
+        正在同步拨打：120急救中心 + 紧急联系人（儿子 张三）<br>
+        请耐心等待来电！
+    </div>
+    """, unsafe_allow_html=True)
 
 # 快速联系
 st.subheader("📞 快速联系家人/社区")
 c1, c2, c3 = st.columns(3)
 with c1:
-    st.button("👨 儿子 张三", use_container_width=True)
+    if st.button("👨 儿子 张三", use_container_width=True):
+        st.markdown("""
+        <div class="call-alert">
+            📞 正在拨打紧急联系人：儿子 张三
+        </div>
+        """, unsafe_allow_html=True)
 with c2:
-    st.button("👩 女儿 李芳", use_container_width=True)
+    if st.button("👩 女儿 李芳", use_container_width=True):
+        st.markdown("""
+        <div class="call-alert">
+            📞 正在拨打紧急联系人：女儿 李芳
+        </div>
+        """, unsafe_allow_html=True)
 with c3:
-    st.button("🏘️ 社区小王", use_container_width=True)
+    if st.button("🏘️ 社区小王", use_container_width=True):
+        st.markdown("""
+        <div class="call-alert">
+            📞 正在拨打社区工作人员：小王
+        </div>
+        """, unsafe_allow_html=True)
 
 # 底部
 st.markdown(f"""
